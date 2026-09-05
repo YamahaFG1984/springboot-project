@@ -262,6 +262,7 @@ html{scroll-behavior:smooth}
   <li><a class="part" href="#p13"><span class="num">13</span><span>打包、配置与上线</span></a></li>
   <li><a class="part" href="#appendix"><span class="num">附</span><span>速查表与依赖清单</span></a></li>
  </ul>
+ <a class="railnext" href="https://claude.ai/code/artifact/70772fa9-2b2f-41b7-a97f-5231a91053fa">读完这一季 →<b>Hono 在线商店 · 进阶</b></a>
  <a class="railnext" href="https://claude.ai/code/artifact/b201d029-3515-4e0d-872c-178bedd878e5">同一个商店的另一种写法 →<b>Spring Boot 4 在线商店</b></a>
  <button class="tog" id="themeBtn" type="button">切换主题</button>
  <div class="railfoot">
@@ -4269,8 +4270,21 @@ console.log(JSON.stringify({
  </div>
 
  <h3>读完之后</h3>
- <p>这一份走完的是"把一个商店做对"。真实系统还有一层没碰：<strong>缓存、异步、外部依赖、以及规模</strong>——Redis 里该放什么、订单状态机怎么建模、支付回调重复和乱序怎么防、限流怎么做、慢查询怎么找。这些主题在<a href="https://claude.ai/code/artifact/ef3145c7-9176-4058-9910-d3adfad5884d">《在线商店 · 进阶》</a>里有完整一季，虽然那一季用的是 Spring Boot，但除了代码语法，<strong>结论几乎逐条适用于这里</strong>——分布式系统的问题不挑语言。</p>
+ <p>这一份走完的是"把一个商店做对"。真实系统还有一层没碰：<strong>缓存、异步、外部依赖、以及规模</strong>——Redis 里该放什么、订单状态机怎么建模、支付回调重复和乱序怎么防、限流怎么做、慢查询怎么找。这些主题在<a href="https://claude.ai/code/artifact/70772fa9-2b2f-41b7-a97f-5231a91053fa">《Hono 在线商店 · 进阶》</a>里有完整一季，沿用这里的同一套 <code>src/</code> 代码库。</p>
  <p>如果想看同一个商店在重型框架下是什么样，<a href="https://claude.ai/code/artifact/b201d029-3515-4e0d-872c-178bedd878e5">《Spring Boot 4 在线商店》</a>是这份教程的姊妹篇，章节一一对应。对照着读，最能看清哪些是框架的选择，哪些是问题本身的形状。</p>
+
+ <div class="nextup">
+  <span class="tag">第二季</span>
+  <h3>加进 Redis 和一个会失败的外部系统之后</h3>
+  <p>这一季埋了七个"留到第二季"，全都在那里还清了：会话与购物车外置、keyset 分页、超时关单、支付回调的幂等与乱序、多实例下的定时任务。同一套代码库继续往下写。</p>
+  <ul>
+   <li>什么数据能放 Redis：一个能当规矩用的判断框架</li>
+   <li>事务里等外部调用为什么会拖垮连接池，以及订单状态机怎么救</li>
+   <li>分布式锁会失效——那正确性该由谁保证</li>
+   <li>Outbox：把"要发通知"这件事也变成一次数据库写入</li>
+  </ul>
+  <a class="go" href="https://claude.ai/code/artifact/70772fa9-2b2f-41b7-a97f-5231a91053fa">读第二季 · 进阶 →</a>
+ </div>
 
  <div class="nextup">
   <span class="tag">姊妹篇</span>

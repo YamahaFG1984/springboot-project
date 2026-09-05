@@ -18,12 +18,14 @@ Spring Security 7 · Spring Modulith · Redis · Testcontainers · Micrometer
 
 | 文件 | 内容 | 篇幅 |
 | --- | --- | --- |
-| [`docs/hono-store.html`](docs/hono-store.html) | 同一个商店，换到光谱的另一端：没有容器、没有反射、没有装饰器 | 序 + 14 部分 + 附录，15 张图，42 道思考题 |
+| [`docs/hono-store.html`](docs/hono-store.html) | **第一季**：同一个商店，换到光谱的另一端——没有容器、没有反射、没有装饰器 | 序 + 14 部分 + 附录，15 张图，42 道思考题 |
+| [`docs/hono-store-advanced.html`](docs/hono-store-advanced.html) | **第二季 · 进阶**：Redis、状态机、外部依赖、Outbox、限流、降级 | 序 + 13 部分 + 附录，14 张图，39 道思考题 |
 
 Hono 4 / TypeScript 5 strict / Node.js 22 · hono/jsx SSR · Drizzle ORM + drizzle-kit ·
-PostgreSQL 17 · Zod 4 · argon2id · Biome · dependency-cruiser · Vitest + Testcontainers
+PostgreSQL 17 · Zod 4 · argon2id · Biome · dependency-cruiser · Vitest + Testcontainers ·
+Redis 7（ioredis）· undici · pino · MSW
 
-两条线章节一一对应，附录里有 Nest / Spring Boot / Hono 的三栈术语对照表。
+两条线各两季，章节一一对应；附录里有 Nest / Spring Boot / Hono 的三栈术语对照表。
 对照着读，最能分清哪些是框架的选择，哪些是问题本身的形状。
 
 ## 每一部分的结构
