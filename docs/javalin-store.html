@@ -268,6 +268,7 @@ html{scroll-behavior:smooth}
   <li><a class="part" href="#p12"><span class="num">12</span><span>打包、配置与上线</span></a></li>
   <li><a class="part" href="#appendix"><span class="num">附</span><span>速查表与四份对照</span></a></li>
  </ul>
+ <a class="railnext" href="https://claude.ai/code/artifact/1dfa9005-71eb-4fbe-8886-ee21a8218cf2">读完这一季 →<b>Javalin 在线商店 · 进阶</b></a>
  <a class="railnext" href="https://claude.ai/code/artifact/b201d029-3515-4e0d-872c-178bedd878e5">同一个商店 →<b>Spring Boot 4 版</b></a>
  <a class="railnext" href="https://claude.ai/code/artifact/8ba8f537-4204-46a7-97b7-d096cdf40eb9">同一个商店 →<b>Hono + Drizzle 版</b></a>
  <button class="tog" id="themeBtn" type="button">切换主题</button>
@@ -4028,13 +4029,28 @@ config.routes.after(ctx -&gt; {
  </div>
 
  <h3>另外三份</h3>
- <p>这个在线商店一共写了四份教程，覆盖三条技术线。章节互相对应，可以横向对照着读——<strong>最能看清哪些结论属于框架，哪些属于问题本身。</strong></p>
+ <p>这个在线商店一共写了六份教程，覆盖三条技术线、每条两季。章节互相对应，可以横向对照着读——<strong>最能看清哪些结论属于框架，哪些属于问题本身。</strong></p>
  <ul>
+  <li><a href="https://claude.ai/code/artifact/1dfa9005-71eb-4fbe-8886-ee21a8218cf2">《Javalin 在线商店 · 进阶》</a>——本文的第二季：Redis、状态机、外部依赖、Outbox、限流、降级。</li>
   <li><a href="https://claude.ai/code/artifact/b201d029-3515-4e0d-872c-178bedd878e5">《Spring Boot 4 在线商店》</a>——有容器、有代理、有注解扫描的那一端。</li>
   <li><a href="https://claude.ai/code/artifact/ef3145c7-9176-4058-9910-d3adfad5884d">《在线商店 · 进阶》</a>——Spring 线第二季：Redis、状态机、外部依赖、Outbox、限流、降级。</li>
   <li><a href="https://claude.ai/code/artifact/8ba8f537-4204-46a7-97b7-d096cdf40eb9">《Hono 在线商店》</a>——什么都没有的另一端：一个函数进出。</li>
   <li><a href="https://claude.ai/code/artifact/70772fa9-2b2f-41b7-a97f-5231a91053fa">《Hono 在线商店 · 进阶》</a>——Hono 线第二季，主题与 Spring 第二季一一对应。</li>
  </ul>
+
+ <div class="nextup">
+  <span class="tag">第二季</span>
+  <h3>加进 Redis 和一个会失败的外部系统之后</h3>
+  <p>这一季埋了七个"留到第二季"，全都在那里还清了：会话与购物车外置、keyset 分页、超时关单、支付回调的幂等与乱序、多实例下的定时任务。同一套 <code>com.example.store</code> 继续往下写。</p>
+  <ul>
+   <li>什么数据能放 Redis：一个能当规矩用的判断框架</li>
+   <li>为什么 Redis 上用 Java 原生序列化是一个远程代码执行漏洞</li>
+   <li>分布式锁会被 GC 停顿弄失效——那正确性该由谁保证</li>
+   <li>Outbox：把"要发通知"这件事也变成一次数据库写入</li>
+   <li>一页汇总的 13 个 Java 特有的坑，从 <code>scheduleAtFixedRate</code> 吞异常到 <code>Semaphore</code> 许可泄漏</li>
+  </ul>
+  <a class="go" href="https://claude.ai/code/artifact/1dfa9005-71eb-4fbe-8886-ee21a8218cf2">读第二季 · 进阶 →</a>
+ </div>
 
  <div class="nextup">
   <span class="tag">横向对照</span>

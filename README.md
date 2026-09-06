@@ -1,6 +1,6 @@
 # 在线商店 · 教学文档
 
-四份自包含的 HTML 教学文档，用同一个「在线商店」项目，把三套技术栈
+六份自包含的 HTML 教学文档，用同一个「在线商店」项目，把三套技术栈各写两季，
 从零讲到生产。直接用浏览器打开即可，无需构建、无外部依赖。
 
 ## Spring Boot 线
@@ -25,7 +25,7 @@ Hono 4 / TypeScript 5 strict / Node.js 22 · hono/jsx SSR · Drizzle ORM + drizz
 PostgreSQL 17 · Zod 4 · argon2id · Biome · dependency-cruiser · Vitest + Testcontainers ·
 Redis 7（ioredis）· undici · pino · MSW
 
-三条技术线覆盖了从重型框架到极简库的整个光谱，章节一一对应；
+三条技术线覆盖了从重型框架到极简库的整个光谱，每条各两季，章节一一对应；
 Javalin 那一份的附录里有 Nest / Spring Boot / Hono / Javalin 的四栈术语对照表。
 对照着读，最能分清哪些是框架的选择，哪些是问题本身的形状。
 
@@ -33,11 +33,13 @@ Javalin 那一份的附录里有 Nest / Spring Boot / Hono / Javalin 的四栈�
 
 | 文件 | 内容 | 篇幅 |
 | --- | --- | --- |
-| [`docs/javalin-store.html`](docs/javalin-store.html) | 同一个商店，坐在光谱中间：跑在 JVM 上，但没有容器、没有反射、没有组件扫描 | 序 + 13 部分 + 附录，13 张图，39 道思考题 |
+| [`docs/javalin-store.html`](docs/javalin-store.html) | **第一季**：同一个商店，坐在光谱中间——跑在 JVM 上，但没有容器、没有反射、没有组件扫描 | 序 + 13 部分 + 附录，13 张图，39 道思考题 |
+| [`docs/javalin-store-advanced.html`](docs/javalin-store-advanced.html) | **第二季 · 进阶**：Redis、状态机、外部依赖、Outbox、限流、降级 | 序 + 13 部分 + 附录，14 张图，39 道思考题 |
 
 Javalin 7.2.3 / Java 21 LTS / Jetty 12 · JTE（编译型模板）· jOOQ + Flyway + HikariCP ·
 PostgreSQL 17 · Password4j（Argon2id）· Spotless + Error Prone + NullAway + ArchUnit ·
-JUnit 5 + javalin-testtools + Testcontainers
+JUnit 5 + javalin-testtools + Testcontainers ·
+Redis 7（Lettuce）· Resilience4j · Caffeine · Micrometer · WireMock
 
 > Javalin 7（2026-02）改变了路由注册方式——路由必须在 `Javalin.create(config -> …)` 块内注册完。
 > 网上多数材料仍是 Javalin 6 的 `app.get(...)` 写法，文档附录里有一张 6 → 7 迁移速查表。
