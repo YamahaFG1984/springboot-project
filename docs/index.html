@@ -1,0 +1,321 @@
+<title>同一个商店，三种写法</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&family=IBM+Plex+Sans:wght@400;500;600;700&display=swap">
+<style>
+:root{
+  --paper:#F6F6F4; --surface:#FFFFFF; --surface-2:#ECECE9; --sunk:#F0F0ED;
+  --ink:#17181C; --ink-2:#3E4148; --ink-3:#6E727C; --hair:#DEDED9; --hair-2:#C6C6C0;
+  --slate:#454952; --slate-soft:#E9EAEC;
+  --spring:#2F6B3A; --spring-soft:#E4EFE2;
+  --hono:#B4451F;   --hono-soft:#FAEAE1;
+  --javalin:#3E4CA8; --javalin-soft:#E7E9F7;
+  --shadow:0 1px 2px rgba(23,24,28,.05), 0 10px 26px -16px rgba(23,24,28,.28);
+  --f-sans:"IBM Plex Sans","PingFang SC","Hiragino Sans GB","Source Han Sans SC","Noto Sans CJK SC","Microsoft YaHei",sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,"SF Mono",Menlo,Consolas,"PingFang SC",monospace;
+  --measure:68ch;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --paper:#131316; --surface:#1A1B1F; --surface-2:#222327; --sunk:#161719;
+    --ink:#E7E7EA; --ink-2:#BDBEC5; --ink-3:#8A8D96; --hair:#2C2D32; --hair-2:#3B3D43;
+    --slate:#A7ACB8; --slate-soft:#212328;
+    --spring:#82C165; --spring-soft:#1D2A1C;
+    --hono:#EF8A57;   --hono-soft:#2E1B12;
+    --javalin:#8E9CF0; --javalin-soft:#1A1D33;
+    --shadow:0 1px 2px rgba(0,0,0,.45), 0 12px 30px -18px rgba(0,0,0,.75);
+  }
+}
+:root[data-theme="dark"]{
+  --paper:#131316; --surface:#1A1B1F; --surface-2:#222327; --sunk:#161719;
+  --ink:#E7E7EA; --ink-2:#BDBEC5; --ink-3:#8A8D96; --hair:#2C2D32; --hair-2:#3B3D43;
+  --slate:#A7ACB8; --slate-soft:#212328;
+  --spring:#82C165; --spring-soft:#1D2A1C;
+  --hono:#EF8A57;   --hono-soft:#2E1B12;
+  --javalin:#8E9CF0; --javalin-soft:#1A1D33;
+  --shadow:0 1px 2px rgba(0,0,0,.45), 0 12px 30px -18px rgba(0,0,0,.75);
+}
+
+*{box-sizing:border-box}
+body{margin:0;background:var(--paper);color:var(--ink);font-family:var(--f-sans);
+  font-size:16px;line-height:1.75;-webkit-font-smoothing:antialiased}
+::selection{background:var(--slate-soft);color:var(--ink)}
+a{color:var(--ink);text-underline-offset:3px}
+a:focus-visible,button:focus-visible{outline:2px solid var(--slate);outline-offset:3px;border-radius:3px}
+.wrap{max-width:1040px;margin:0 auto;padding:0 clamp(20px,5vw,48px) 100px}
+
+/* ---------- masthead ---------- */
+.mast{padding:64px 0 30px;border-bottom:2px solid var(--ink)}
+.eyebrow{font-family:var(--f-mono);font-size:11.5px;letter-spacing:.16em;text-transform:uppercase;
+  color:var(--ink-3);margin-bottom:18px}
+h1{font-size:clamp(32px,5.2vw,54px);line-height:1.12;letter-spacing:-.028em;font-weight:600;
+  margin:0 0 18px;text-wrap:balance;max-width:16ch}
+.dek{font-size:17.5px;color:var(--ink-2);max-width:var(--measure);margin:0 0 26px;line-height:1.72}
+.dek strong{font-weight:600;color:var(--ink)}
+.specs{display:grid;grid-template-columns:repeat(auto-fit,minmax(120px,1fr));
+  border-top:1px solid var(--hair);border-left:1px solid var(--hair)}
+.spec{border-right:1px solid var(--hair);border-bottom:1px solid var(--hair);padding:11px 14px}
+.spec dt{font-family:var(--f-mono);font-size:10.5px;letter-spacing:.1em;text-transform:uppercase;
+  color:var(--ink-3);margin:0 0 3px}
+.spec dd{margin:0;font-size:15px;font-weight:600;font-variant-numeric:tabular-nums}
+
+/* ---------- section headers ---------- */
+h2{font-size:clamp(21px,2.6vw,27px);letter-spacing:-.018em;font-weight:600;line-height:1.3;
+  margin:64px 0 8px;text-wrap:balance}
+h2::before{content:"";display:block;width:30px;height:2px;background:var(--slate);margin-bottom:14px}
+.sub{font-size:14.5px;color:var(--ink-3);margin:0 0 26px;max-width:58ch}
+p{margin:0 0 15px;max-width:var(--measure)}
+
+/* ---------- line cards ---------- */
+.lines{display:grid;grid-template-columns:repeat(auto-fit,minmax(290px,1fr));gap:18px;margin-top:34px}
+.line{border:1px solid var(--hair);border-top:4px solid var(--c);border-radius:9px;
+  background:var(--surface);padding:22px 22px 18px;box-shadow:var(--shadow);
+  display:flex;flex-direction:column}
+.line.s{--c:var(--spring);--tint:var(--spring-soft)}
+.line.h{--c:var(--hono);--tint:var(--hono-soft)}
+.line.j{--c:var(--javalin);--tint:var(--javalin-soft)}
+.line .tag{font-family:var(--f-mono);font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;
+  color:var(--c);font-weight:600}
+.line h3{margin:8px 0 6px;font-size:20px;font-weight:600;letter-spacing:-.012em}
+.line .pos{font-size:14px;color:var(--ink-2);margin:0 0 14px;line-height:1.65}
+.line .stack{font-family:var(--f-mono);font-size:11.5px;line-height:1.75;color:var(--ink-3);
+  background:var(--sunk);border:1px solid var(--hair);border-radius:5px;padding:9px 11px;margin-bottom:16px}
+.vols{list-style:none;margin:0 0 14px;padding:0;display:flex;flex-direction:column;gap:8px}
+.vols a{display:flex;align-items:baseline;gap:10px;text-decoration:none;padding:9px 11px;
+  border:1px solid var(--hair);border-radius:6px;background:var(--surface);transition:background .12s,border-color .12s}
+.vols a:hover{background:var(--tint);border-color:var(--c)}
+.vols .n{font-family:var(--f-mono);font-size:11px;color:var(--c);font-weight:600;flex:0 0 auto}
+.vols .t{font-size:14.5px;font-weight:500;flex:1}
+.vols .m{font-family:var(--f-mono);font-size:10.5px;color:var(--ink-3);flex:0 0 auto;
+  font-variant-numeric:tabular-nums}
+.line .who{margin-top:auto;padding-top:12px;border-top:1px dashed var(--hair-2);
+  font-size:13px;color:var(--ink-2);line-height:1.6}
+.line .who b{color:var(--c);font-weight:600}
+
+/* ---------- tables ---------- */
+.tw{overflow-x:auto;margin:22px 0 10px;border:1px solid var(--hair);border-radius:8px;background:var(--surface)}
+table{border-collapse:collapse;width:100%;font-size:14px;min-width:660px}
+th,td{text-align:left;padding:10px 14px;border-bottom:1px solid var(--hair);vertical-align:top}
+thead th{font-family:var(--f-mono);font-size:10.5px;letter-spacing:.09em;text-transform:uppercase;
+  font-weight:600;background:var(--surface-2);white-space:nowrap}
+thead th.c1{color:var(--spring)} thead th.c2{color:var(--hono)} thead th.c3{color:var(--javalin)}
+tbody tr:last-child td{border-bottom:0}
+tbody tr:nth-child(even){background:var(--sunk)}
+td.q{font-weight:500;white-space:nowrap}
+td code,li code,p code{font-family:var(--f-mono);font-size:.87em;background:var(--sunk);
+  border:1px solid var(--hair);border-radius:3px;padding:1px 5px}
+.dot{display:inline-block;width:7px;height:7px;border-radius:50%;margin-right:7px;vertical-align:1px}
+.dot.s{background:var(--spring)} .dot.h{background:var(--hono)} .dot.j{background:var(--javalin)}
+
+/* ---------- shared conclusions ---------- */
+.shared{border:1px solid var(--hair);border-left:3px solid var(--slate);border-radius:0 8px 8px 0;
+  background:var(--surface);padding:20px 24px 8px;margin-top:26px}
+.shared ol{margin:0;padding-left:1.3em;max-width:none}
+.shared li{margin-bottom:11px;font-size:15px;color:var(--ink-2);line-height:1.7}
+.shared li b{color:var(--ink);font-weight:600}
+
+/* ---------- season 2 topics ---------- */
+.topics{display:grid;grid-template-columns:repeat(auto-fill,minmax(210px,1fr));gap:9px;margin-top:22px}
+.topic{border:1px solid var(--hair);border-radius:6px;background:var(--surface);padding:10px 12px;
+  display:flex;gap:9px;align-items:baseline}
+.topic .n{font-family:var(--f-mono);font-size:11px;color:var(--ink-3);flex:0 0 auto;
+  font-variant-numeric:tabular-nums}
+.topic .t{font-size:13.5px;line-height:1.5}
+
+ul.plain{max-width:var(--measure);padding-left:1.2em}
+ul.plain li{margin-bottom:8px;color:var(--ink-2)}
+
+/* ---------- footer ---------- */
+footer{margin-top:76px;padding-top:24px;border-top:2px solid var(--ink);
+  font-size:13.5px;color:var(--ink-3);line-height:1.8}
+footer p{max-width:var(--measure)}
+footer a{color:var(--ink-2)}
+.tog{margin-top:18px;font-family:var(--f-mono);font-size:11px;letter-spacing:.08em;
+  background:none;border:1px solid var(--hair-2);color:var(--ink-2);border-radius:4px;
+  padding:5px 11px;cursor:pointer}
+.tog:hover{border-color:var(--slate);color:var(--ink)}
+
+@media (prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+</style>
+
+<div class="wrap">
+
+<header class="mast">
+  <div class="eyebrow">改编自 Practical Nest.js · 三条技术线 · 每条两季</div>
+  <h1>同一个商店，三种写法</h1>
+  <p class="dek">一个在线商店——首页、商品、购物车、注册登录、我的订单、管理后台——用三套技术栈各写两遍。<strong>章节一一对应</strong>，所以可以横向对照着读：同一个问题，Spring Boot、Hono 和 Javalin 各自怎么回答，以及<strong>哪些答案其实和框架无关</strong>。</p>
+  <dl class="specs">
+    <div class="spec"><dt>技术线</dt><dd>3 条</dd></div>
+    <div class="spec"><dt>册数</dt><dd>6 册</dd></div>
+    <div class="spec"><dt>主线部分</dt><dd>79 个</dd></div>
+    <div class="spec"><dt>机制图</dt><dd>82 张</dd></div>
+    <div class="spec"><dt>思考题</dt><dd>236 道</dd></div>
+    <div class="spec"><dt>依赖</dt><dd>无，打开即读</dd></div>
+  </dl>
+</header>
+
+<h2>三条线</h2>
+<p class="sub">从"框架替你做完一切"到"框架几乎什么都不做"，Javalin 坐在中间。每条线的第一季讲把系统做对，第二季讲让它扛得住真实世界。</p>
+
+<div class="lines">
+
+  <div class="line s">
+    <span class="tag">重型框架的一端</span>
+    <h3>Spring Boot 4</h3>
+    <p class="pos">有 IoC 容器、有动态代理、有注解扫描。写得最少，但你需要知道的机制最多——因为出问题时要能看穿那几层代理。</p>
+    <div class="stack">Spring Framework 7 · Jakarta EE 11<br>Thymeleaf · JPA / Hibernate 7<br>Spring Security 7 · Spring Modulith</div>
+    <ul class="vols">
+      <li><a href="springboot-store.html"><span class="n">第一季</span><span class="t">在线商店</span><span class="m">13 部分 · 38 题</span></a></li>
+      <li><a href="springboot-store-advanced.html"><span class="n">第二季</span><span class="t">进阶</span><span class="m">13 部分 · 39 题</span></a></li>
+    </ul>
+    <p class="who"><b>适合</b>已经在用 Spring、想弄清楚"这行注解到底做了什么"的人。</p>
+  </div>
+
+  <div class="line h">
+    <span class="tag">极简库的另一端</span>
+    <h3>Hono + Drizzle</h3>
+    <p class="pos">没有容器、没有反射、没有装饰器。一个 <code>Request</code> 进、一个 <code>Response</code> 出。少掉的机制没有消失，只是交回到了你手里。</p>
+    <div class="stack">TypeScript strict · Node.js 22<br>hono/jsx · Drizzle ORM + drizzle-kit<br>Zod · Biome · Vitest</div>
+    <ul class="vols">
+      <li><a href="hono-store.html"><span class="n">第一季</span><span class="t">在线商店</span><span class="m">14 部分 · 42 题</span></a></li>
+      <li><a href="hono-store-advanced.html"><span class="n">第二季</span><span class="t">进阶</span><span class="m">13 部分 · 39 题</span></a></li>
+    </ul>
+    <p class="who"><b>适合</b>想看清"框架到底替我做了什么"的人——把它拿掉一次最清楚。</p>
+  </div>
+
+  <div class="line j">
+    <span class="tag">中间那一档</span>
+    <h3>Javalin 7 + jOOQ</h3>
+    <p class="pos">跑在 JVM 上、能用整个 Java 生态，却和 Hono 一样克制：没有容器、没有反射、没有组件扫描。你写的 Handler 就是被调用的那个对象。</p>
+    <div class="stack">Java 21 · Jetty 12<br>JTE（编译型模板）· jOOQ + Flyway<br>Error Prone + NullAway · ArchUnit</div>
+    <ul class="vols">
+      <li><a href="javalin-store.html"><span class="n">第一季</span><span class="t">在线商店</span><span class="m">13 部分 · 39 题</span></a></li>
+      <li><a href="javalin-store-advanced.html"><span class="n">第二季</span><span class="t">进阶</span><span class="m">13 部分 · 39 题</span></a></li>
+    </ul>
+    <p class="who"><b>适合</b>写 Java 但不想背 Spring 全家桶的人，以及想理解 Spring 的人。</p>
+  </div>
+
+</div>
+
+<h2>该从哪一条开始</h2>
+<p class="sub">六册都是自足的，不必按顺序读。但如果你在犹豫：</p>
+<ul class="plain">
+  <li><strong>想学一门具体的技术</strong> → 直接挑那条线的第一季，读完再决定要不要第二季。</li>
+  <li><strong>想搞懂 Web 后端到底有哪些问题</strong> → 读任意一条线的<strong>第二季</strong>。三条线的第二季讲的是同一批问题，而那些问题不挑语言。</li>
+  <li><strong>想看清框架的边界在哪</strong> → 挑<strong>两条</strong>线的第一季对照读。下面那张表就是这样读出来的。</li>
+  <li><strong>手上有一个真项目要做对</strong> → 第二季的 05、06、09、10 四个部分（状态机、库存预占、回调幂等、Outbox），它们不需要 Redis，只需要一个关系数据库。</li>
+</ul>
+
+<h2>同一个问题，三种答案</h2>
+<p class="sub">这张表是这套书真正的产出：横着读能看到框架的差异，竖着读能看到一条线的性格。</p>
+
+<div class="tw">
+<table>
+  <thead>
+    <tr>
+      <th>同一个问题</th>
+      <th class="c1"><span class="dot s"></span>Spring Boot</th>
+      <th class="c2"><span class="dot h"></span>Hono</th>
+      <th class="c3"><span class="dot j"></span>Javalin</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr><td class="q">请求怎么找到代码</td><td>注解扫描 + DispatcherServlet</td><td>启动时编译成正则</td><td>启动前就冻结的路由表</td></tr>
+    <tr><td class="q">对象怎么拿到依赖</td><td>IoC 容器，构造器注入</td><td>import 或函数参数</td><td>手工组装，参数传递</td></tr>
+    <tr><td class="q">横切逻辑挂在哪</td><td>Filter + Interceptor + AOP</td><td>中间件，洋葱模型</td><td>before / after，线性流水线</td></tr>
+    <tr><td class="q">模板怎么转义</td><td>Thymeleaf，一律按 HTML</td><td>JSX，一律按 HTML</td><td><strong>JTE，按上下文分别转义</strong></td></tr>
+    <tr><td class="q">数据层的信息流方向</td><td>实体 → 表</td><td>代码 schema → 表</td><td><strong>表 → 代码</strong></td></tr>
+    <tr><td class="q">一对多怎么抓</td><td>懒加载 / <code>@EntityGraph</code></td><td><code>with</code> 或批量查 + Map</td><td><strong><code>MULTISET</code></strong></td></tr>
+    <tr><td class="q">事务边界</td><td><code>@Transactional</code> 代理</td><td>回调作用域，手工传 <code>tx</code></td><td>回调作用域，手工传 <code>DSLContext</code></td></tr>
+    <tr><td class="q">金额用什么类型</td><td><code>BigDecimal</code></td><td>整数分 + 品牌类型</td><td><code>long</code> 分 + <code>Money</code> record</td></tr>
+    <tr><td class="q">空安全靠什么</td><td>JSpecify + NullAway</td><td><strong>语言自带</strong></td><td>JSpecify + NullAway</td></tr>
+    <tr><td class="q">模块边界谁来守</td><td>Spring Modulith（测试断言）</td><td>dependency-cruiser（静态分析）</td><td><strong>package-private（编译器）</strong> + ArchUnit</td></tr>
+    <tr><td class="q">测一个端点要起什么</td><td>整个上下文，或一个切片</td><td><strong>什么都不起</strong></td><td>一个真 Jetty，几十毫秒</td></tr>
+    <tr><td class="q">并发模型</td><td>线程 / 虚拟线程</td><td>事件循环</td><td>线程 / 虚拟线程</td></tr>
+    <tr><td class="q">锁失效时的主角</td><td>GC 停顿</td><td>事件循环被同步代码阻塞</td><td>GC 停顿</td></tr>
+    <tr><td class="q">启动时间</td><td>约 2 秒</td><td>约 50 毫秒</td><td>约 200 毫秒</td></tr>
+  </tbody>
+</table>
+</div>
+
+<h2>三条线得出的同一批结论</h2>
+<p class="sub">写完六册之后，这些是三边一字不差的部分——它们不属于任何框架，属于问题本身。</p>
+
+<div class="shared">
+<ol>
+  <li><b>模块边界该画在哪，和用什么框架无关。</b>变的只是用什么手段守住它：容器、静态分析，还是编译器。</li>
+  <li><b>金额永远不用浮点。</b>Java 用整数分或 <code>BigDecimal</code>、JS 用整数分，理由是同一个；而舍入必须显式，运算顺序会改变结果。</li>
+  <li><b>先检查后执行，在并发下必然失效。</b>修法只有一种形状：让检查和修改在数据库里成为一个不可分割的动作。</li>
+  <li><b>事务里不能等外部调用。</b>它持有的是系统里最稀缺的两种资源：连接和行锁。</li>
+  <li><b>超时既不是成功也不是失败，是"不知道"。</b>所以幂等键不是优化，是和外部系统交互的必需品。</li>
+  <li><b>分布式锁是性能优化，不是正确性保证。</b>正确性必须由数据库的唯一约束、条件更新或状态机兜底。</li>
+  <li><b>"恰好一次"投递不可实现。</b>能做到的只有"至少一次投递 + 接收方幂等"——你在 Outbox 里是发送方，在支付回调里是接收方。</li>
+  <li><b>缓存不是慢查询的解药，是止痛片。</b>它把持续的性能问题换成了偶发的可用性问题，而爆发时刻恰好是系统已经不稳定的时候。</li>
+  <li><b>先把系统做对，再把它做快。</b>顺序反过来，你会得到一个又快又错的系统，而且很难知道它错在哪。</li>
+</ol>
+</div>
+
+<h2>第二季的十三个主题</h2>
+<p class="sub">三条线的第二季<strong>完全对应</strong>——同样的编号、同样的主题。加进 Redis、一个会超时会重复回调的支付网关，以及时间。</p>
+
+<div class="topics">
+  <div class="topic"><span class="n">01</span><span class="t">Redis 进场</span></div>
+  <div class="topic"><span class="n">02</span><span class="t">会话与购物车外置</span></div>
+  <div class="topic"><span class="n">03</span><span class="t">分页、动态查询与索引</span></div>
+  <div class="topic"><span class="n">04</span><span class="t">缓存：三种失效形态</span></div>
+  <div class="topic"><span class="n">05</span><span class="t">订单状态机</span></div>
+  <div class="topic"><span class="n">06</span><span class="t">库存预占与超时释放</span></div>
+  <div class="topic"><span class="n">07</span><span class="t">定时任务与分布式锁</span></div>
+  <div class="topic"><span class="n">08</span><span class="t">对外集成：支付网关</span></div>
+  <div class="topic"><span class="n">09</span><span class="t">异步回调与幂等</span></div>
+  <div class="topic"><span class="n">10</span><span class="t">事件、Outbox 与通知</span></div>
+  <div class="topic"><span class="n">11</span><span class="t">限流与防刷</span></div>
+  <div class="topic"><span class="n">12</span><span class="t">错误处理与可观测性</span></div>
+  <div class="topic"><span class="n">13</span><span class="t">Redis 挂了会怎样</span></div>
+</div>
+
+<h2>每一部分都是同一个结构</h2>
+<div class="tw">
+<table>
+  <thead><tr><th>顺序</th><th>内容</th></tr></thead>
+  <tbody>
+    <tr><td class="q">1 · 它解决什么问题</td><td>先说清楚不用它会怎样。</td></tr>
+    <tr><td class="q">2 · 最小可用代码</td><td>能跑的最短版本，逐行看得懂。</td></tr>
+    <tr><td class="q">3 · 机制拆解</td><td>配图，讲清楚底下发生了什么。全套 82 张。</td></tr>
+    <tr><td class="q">4 · 常见错误做法</td><td>包括原书在同一处怎么写的，以及那样写什么时候出事。</td></tr>
+    <tr><td class="q">5 · 思考题</td><td>三道，先自己想，思路提示可以展开。全套 236 道。</td></tr>
+  </tbody>
+</table>
+</div>
+
+<footer>
+  <p>内容脉络取自 <em>Practical Nest.js: Develop clean MVC web applications</em>（Correa &amp; Lim, 2022）：同一个在线商店、同样循序渐进的推进方式。技术栈整体替换，并针对各自语言生态的实际情况逐个主题加深。</p>
+  <p>原书没有事务、没有并发控制、没有 N+1、没有测试，<code>synchronize: true</code> 直接对着生产库跑——这些缺口在三条线里都补上了，而补上它们的过程就是这套书的全部内容。原书 PDF 属版权材料，不包含在本仓库中。</p>
+  <button class="tog" id="themeBtn" type="button">切换主题</button>
+</footer>
+
+</div>
+
+<script>
+(function () {
+  var root = document.documentElement;
+  var btn = document.getElementById('themeBtn');
+  var order = [null, 'dark', 'light'];
+  var idx = 0;
+  try {
+    var saved = localStorage.getItem('store-index-theme');
+    if (saved === 'dark' || saved === 'light') { idx = order.indexOf(saved); root.setAttribute('data-theme', saved); }
+  } catch (e) { /* 隐私模式下读不到，按跟随系统处理 */ }
+  function label(v) { return v === 'dark' ? '深色' : v === 'light' ? '浅色' : '跟随系统'; }
+  if (btn) {
+    btn.textContent = label(order[idx]);
+    btn.addEventListener('click', function () {
+      idx = (idx + 1) % order.length;
+      var v = order[idx];
+      if (v) { root.setAttribute('data-theme', v); } else { root.removeAttribute('data-theme'); }
+      btn.textContent = label(v);
+      try { v ? localStorage.setItem('store-index-theme', v) : localStorage.removeItem('store-index-theme'); } catch (e) {}
+    });
+  }
+})();
+</script>
