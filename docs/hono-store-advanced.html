@@ -319,6 +319,13 @@ html{scroll-behavior:smooth}
   <li><strong>没有时间。</strong>第一季里唯一的时间是 <code>createdAt</code>。这一季有超时、有过期、有定时任务、有 TTL——而所有涉及时间的正确性问题，都会以并发问题的形式暴露出来。</li>
  </ol>
 
+ <div class="note deep">
+  <span class="tag">一条平行的读法 · 只用 PostgreSQL 走多远</span>
+  <p>这一季引入了 Redis，但其中<strong>四个部分不需要它</strong>：订单状态机（05）、库存预占（06）、回调幂等（09）、Outbox（10）。它们只靠 PostgreSQL 的原语——枚举、行锁、条件更新、唯一索引、<code>skip locked</code>——就能完整实现。</p>
+  <p>这四部分各自末尾都有一节<strong>《参考取舍》</strong>，内容是同一个形状：纯 PostgreSQL 的写法长什么样、它的吞吐上限在哪、撞到上限时下一步该做什么、以及用 Redis 替换会得到什么、失去什么。</p>
+  <p>如果你想先做一个正确但不追求极限性能的版本，<strong>可以只读这四部分加上第 03、12 部分，跳过其余</strong>。第 13 部分末尾解释了为什么我认为这才是更合理的上手顺序。</p>
+ </div>
+
  <div class="note map">
   <span class="tag">对照 · 这一季和 Spring 那一季的关系</span>
   <p>本文有一份姊妹篇：<a href="https://claude.ai/code/artifact/ef3145c7-9176-4058-9910-d3adfad5884d">《在线商店 · 进阶》</a>，同样的 13 个主题，用 Spring Boot 4 写。<strong>两边的结论几乎逐条相同</strong>——因为这一季讲的东西大多不属于框架层面：Redis 的丢失窗口、超时的三种真相、Outbox 的原理、限流算法的边界突发，换成任何语言都一样。</p>
@@ -1415,6 +1422,72 @@ export const orderStatusChanges = pgTable("order_status_changes", {
   </ul>
  </div>
 
+ <h3>参考取舍：只用 PostgreSQL 能做到哪一步</h3>
+ <p class="lead">这一部分从头到尾没有出现 Redis——状态机的每个部件都是数据库原语：枚举类型、行锁、条件更新、历史表。但还有一步可以再走远一点，值得知道它存在：<strong>把转移表本身也放进数据库。</strong></p>
+
+<figure class="code">
+<figcaption><span class="path">migrations/00xx_status_guard.sql</span><span class="lang">sql</span></figcaption>
+<pre><code class="language-sql">-- 图 5 那张转移表，变成一张真表
+create table order_status_transitions (
+  from_status order_status not null,
+  to_status   order_status not null,
+  primary key (from_status, to_status)
+);
+insert into order_status_transitions (from_status, to_status) values
+  ('pending_payment', 'paid'),  ('pending_payment', 'cancelled'),
+  ('paid', 'shipped'),          ('paid', 'refunding'),
+  ('shipped', 'completed'),     ('shipped', 'refunding'),
+  ('refunding', 'refunded'),    ('refunding', 'paid');
+
+-- 最后一道防线：绕过应用直接写库也拦得住
+create or replace function assert_order_transition() returns trigger as $$
+begin
+  if new.status is distinct from old.status
+     and not exists (select 1 from order_status_transitions
+                      where from_status = old.status and to_status = new.status) then
+    raise exception '非法状态转移 % -&gt; %（订单 %）', old.status, new.status, old.id
+      using errcode = 'check_violation';
+  end if;
+  return new;
+end $$ language plpgsql;
+
+create trigger orders_status_guard
+  before update of status on orders
+  for each row execute function assert_order_transition();</code></pre>
+</figure>
+
+ <div class="tw">
+ <table>
+  <thead><tr><th></th><th>转移表放在代码里（本项目）</th><th>再加一份放进数据库</th></tr></thead>
+  <tbody>
+   <tr><td>谁受它约束</td><td>只有走 <code>transitionTo</code> 的代码</td><td><strong>所有写入者</strong>——别的服务、运维脚本、手工 SQL</td></tr>
+   <tr><td>错误信息</td><td>自定义异常，带订单号和上下文，能直接映射成 HTTP 状态码</td><td>一个 SQL 异常。要靠 <code>errcode</code> 识别，信息也更粗</td></tr>
+   <tr><td>测试</td><td>纯函数，几微秒一个用例</td><td>必须起真数据库才能测（第一季第 12 部分那套）</td></tr>
+   <tr><td>改一条规则</td><td>改一行常量</td><td>要写一次迁移，而且要和代码同步发布</td></tr>
+   <tr><td>类型系统的帮助</td><td><code>Record&lt;OrderStatus, …&gt;</code> 保证穷尽，加状态时不会漏</td><td>没有。表里少一行不会有任何提示</td></tr>
+  </tbody>
+ </table>
+ </div>
+
+ <div class="note deep">
+  <span class="tag">深入 · 两处都放，但职责不同</span>
+  <p>这不是二选一。我的建议是<strong>两处都写，并且明确它们不是同一件事</strong>：</p>
+  <ul>
+   <li><strong>代码里的转移表是业务逻辑</strong>：它负责给出好的错误消息、决定返回 409 还是 422、区分"重复到达"和"非法转移"（图 5 那两个框）。用户看得到它的输出。</li>
+   <li><strong>数据库里的触发器是断言</strong>：正常情况下它<em>永远不该触发</em>。一旦触发，说明有代码绕过了 <code>transitionTo</code>——这是一个需要立刻告警的工程事件，不是业务错误。</li>
+  </ul>
+  <p>换句话说：<strong>触发器报错不该被当成"用户操作非法"处理，而该被当成"我们的代码有 bug"处理。</strong>把它接进第 12 部分那套告警，比把它渲染成一个错误页有用得多。</p>
+  <p>什么时候可以省掉触发器：只有一个应用写这张表，团队也守得住"状态只从一个函数改"的纪律。什么时候必须有：库被多个服务共享、有数据订正脚本、或者有人会为了修数据直接连生产库——<em>最后这一条比想象中普遍。</em></p>
+ </div>
+
+ <div class="note trap">
+  <span class="tag">陷阱 · 触发器不是免费的</span>
+  <p>每次更新订单都会多一次 <code>order_status_transitions</code> 的索引查找。这张表只有八行、常驻缓存，代价可以忽略——<strong>但前提是触发器只做这一件事</strong>。见过在触发器里写审计日志、发通知、更新聚合表的，那就变成了藏在数据库里的业务逻辑：难测试、难调试、迁移时难改，而且它会让每一次 UPDATE 都变慢，却不出现在任何应用代码的性能分析里。</p>
+  <p><strong>规矩：触发器只用来拒绝，不用来做事。</strong>凡是有副作用的，都该在应用层显式写出来。</p>
+ </div>
+
+ <p>状态变化要广播给别的模块时，PostgreSQL 也自带一个工具：<code>NOTIFY order_changed, '8812'</code>。但它<strong>不能替代 Outbox</strong>——理由和第 06 部分底部拒绝 Redis 键过期通知是同一条：通知不持久化，没有监听者时直接丢弃。它的正确定位是第 10 部分讲的"快慢结合"里的快路径。</p>
+
  <div class="ask">
   <h4>动手与思考 · 第 05 部分</h4>
   <p class="hint">先自己想，再展开思路。</p>
@@ -1614,6 +1687,84 @@ export async function passGate(productId: number, qty: number) {
  </div>
 
  <p>三种错误方向都不会导致超卖，因为<strong>真正的判断始终在数据库那条条件 UPDATE 上</strong>。这就是"Redis 是性能优化，不是正确性保证"这句话的具体含义——它会在第 07 部分再出现一次。</p>
+
+ <h3>参考取舍：去掉 Redis 闸门，只用 PostgreSQL</h3>
+ <p class="lead">上面那道闸门是这一部分里唯一用到 Redis 的地方，而它的存在只有一个理由：<strong>热点行的锁争用。</strong>同一件商品的所有下单请求都要更新 <code>products</code> 的同一行，而同一行的更新在数据库里是严格串行的——第一个事务不提交，后面的全在等。</p>
+ <p>先量一个数量级：一次 <code>update … where stock - reserved &gt;= n</code> 加上提交，在本地 NVMe 上大约 0.3～1 ms，跨可用区带同步复制可能到 3～5 ms。<strong>也就是说单行的极限吞吐大约是每秒几百到三千次。</strong>日常电商的单品下单速率远低于这个数，<em>不需要任何闸门</em>。真正会撞上的只有秒杀。</p>
+
+ <h4>PostgreSQL 原生的解法：库存分桶</h4>
+ <p>把一件商品的库存拆成 N 行，下单时随机挑一个桶扣。<strong>锁争用降到原来的 1/N，而且完全不引入新组件。</strong></p>
+
+<figure class="code">
+<figcaption><span class="path">src/db/schema.ts</span><span class="lang">typescript</span></figcaption>
+<pre><code class="language-typescript">export const stockBuckets = pgTable("product_stock_buckets", {
+  productId: integer("product_id").notNull().references(() =&gt; products.id),
+  bucket: smallint("bucket").notNull(),
+  stock: integer("stock").notNull(),
+  reserved: integer("reserved").notNull().default(0),
+}, (t) =&gt; [
+  primaryKey({ columns: [t.productId, t.bucket] }),
+  check("bucket_reserved_ok", sql`${t.reserved} &gt;= 0 and ${t.reserved} &lt;= ${t.stock}`),
+]);</code></pre>
+</figure>
+
+<figure class="code">
+<figcaption><span class="path">src/catalog/stock-sharded.ts</span><span class="lang">typescript</span></figcaption>
+<pre><code class="language-typescript">/** 挑一个没被别人锁住、且余量够的桶 —— 一条语句完成选择与加锁 */
+export async function reserveSharded(tx: Tx, productId: number, qty: number) {
+  const picked = await tx.execute&lt;{ bucket: number }&gt;(sql`
+    select bucket from product_stock_buckets
+     where product_id = ${productId} and stock - reserved &gt;= ${qty}
+     order by random()
+     limit 1
+     for update skip locked`);          // ← 跳过正在被别人改的桶，不排队
+
+  const bucket = picked[0]?.bucket;
+  if (bucket === undefined) return null;  // 注意：这不等于"总量不够"，见下方
+
+  await tx.update(stockBuckets)
+    .set({ reserved: sql`${stockBuckets.reserved} + ${qty}` })
+    .where(and(eq(stockBuckets.productId, productId), eq(stockBuckets.bucket, bucket)));
+
+  return bucket;   // 必须记进订单行 —— 释放和转实扣要还给同一个桶
+}</code></pre>
+</figure>
+
+ <div class="note trap">
+  <span class="tag">陷阱 · 分桶引入了三个新问题</span>
+  <ul>
+   <li><strong>碎片。</strong>总量还剩 5 件，但分散在 5 个桶里各 1 件——一个买 3 件的请求会失败，尽管库存明明够。桶数要按"单次购买量的上限"来定，并且在<em>所有桶都不够</em>时做一次跨桶合并（把零头挪到一起）再重试一次。</li>
+   <li><strong>可售量不再是一个数。</strong>页面上要显示"还剩几件"就得 <code>sum(stock - reserved)</code> 聚合 N 行。好在这个数字可以近似、可以缓存——<em>它是展示用的，不是判断用的</em>。</li>
+   <li><strong>桶号必须持久化。</strong>预占记在哪个桶里，释放和转实扣就要还给哪个桶。这一列漏了的话，<code>reserved</code> 会在桶之间漂移，最后靠 check 约束报错——那时已经很难查了。</li>
+  </ul>
+  <p>N 怎么选：太小没效果，太大碎片严重。经验值是<strong>并发写入者数量的量级，通常 8～32</strong>。而且 N 应该可以在线调整（加桶容易，减桶要先把余量合并走）。</p>
+ </div>
+
+ <div class="tw">
+ <table>
+  <thead><tr><th></th><th>Redis 闸门</th><th>PostgreSQL 分桶</th><th>什么都不做</th></tr></thead>
+  <tbody>
+   <tr><td>单品吞吐上限</td><td>很高（单键几万 QPS）</td><td>N × 单行吞吐，大约每秒几千到几万</td><td>每秒几百到三千</td></tr>
+   <tr><td>数据库压力</td><td>只有 1% 的请求到得了数据库</td><td>全部到数据库，但不排队</td><td>全部到数据库，且排队</td></tr>
+   <tr><td>正确性由谁保证</td><td>数据库（闸门不承担）</td><td>数据库本身</td><td>数据库本身</td></tr>
+   <tr><td>新增故障域</td><td>有——Redis 挂了退化成"什么都不做"</td><td>无</td><td>无</td></tr>
+   <tr><td>可售量怎么读</td><td>直接读闸门那个数</td><td>聚合 N 行（可缓存）</td><td>读一行</td></tr>
+   <tr><td>额外复杂度</td><td>Lua 脚本 + 闸门初始化 + 定期用真实值重置</td><td>分桶键 + 碎片合并 + 桶号持久化</td><td>无</td></tr>
+  </tbody>
+ </table>
+ </div>
+
+ <div class="note deep">
+  <span class="tag">深入 · 上手顺序</span>
+  <p>三档不是并列的选项，是一条<strong>按需升级的路径</strong>，而且每一档都该有一个明确的触发信号：</p>
+  <ol class="steps">
+   <li><strong>什么都不做。</strong>先上线，然后盯一个指标：<em>单品下单的 p99 耗时</em>，以及 <code>pg_locks</code> 里的行锁等待。它们没涨，就不需要往下走。</li>
+   <li><strong>先把事务压到最短。</strong>很多"热点行争用"其实是事务太长造成的——预占和别的写操作挤在一个事务里，锁持有时间被拉长了几倍。<em>这一步经常能把问题直接消掉，而且不改数据模型。</em></li>
+   <li><strong>分桶。</strong>当单品吞吐确实撞到单行上限时。它把问题解决在数据库内部，不引入组件。</li>
+   <li><strong>Redis 闸门。</strong>只有真正的秒杀（单品每秒上万次）才需要。而且此时分桶通常也要一起用——闸门挡掉大部分，分桶接住剩下的。</li>
+  </ol>
+  <p>值得强调第 2 档：<strong>它是这四档里投入产出比最高的一档，也是最容易被跳过的一档。</strong>人们看到"热点行"就直接跳到分桶或 Redis，很少先去量一下锁到底被持有了多久。</p>
+ </div>
 
  <div class="ask">
   <h4>动手与思考 · 第 06 部分</h4>
@@ -2446,6 +2597,61 @@ webhookRoutes.post("/payment", async (c) =&gt; {
   </ul>
  </div>
 
+ <h3>参考取舍：幂等键为什么必须落在 PostgreSQL</h3>
+ <p class="lead">闸 ④ 用的是一张表加一个唯一索引。有一个诱人得多的写法：<code>SET evt:7f3 1 NX EX 86400</code>——一行命令，不占数据库连接，快一个数量级。<strong>这个替换会引入一类几乎无法排查的丢单。</strong></p>
+
+<figure class="code">
+<figcaption><span class="path">看起来更好的写法</span><span class="lang">typescript</span></figcaption>
+<pre><code class="language-typescript">// ✗ 不要这样做
+const first = await redis.set(`evt:${event.id}`, "1", "EX", 86400, "NX");
+if (first !== "OK") return c.json({ ok: true, outcome: "duplicate" });
+
+await db.transaction(async (tx) =&gt; {
+  // …转移状态、转实扣、写 Outbox…
+});   // ← 这里如果抛异常，事务回滚了，但 Redis 那个键还在</code></pre>
+</figure>
+
+ <div class="note sec">
+  <span class="tag">这个 bug 的完整形状</span>
+  <ol class="steps">
+   <li>回调到达，Redis 记下 <code>evt:7f3</code>，返回"我是第一个"。</li>
+   <li>业务事务执行到一半，数据库连接超时（或者死锁被回滚、或者进程被 SIGKILL）。事务回滚，<strong>订单还是 <code>pending_payment</code></strong>。</li>
+   <li>我们返回 5xx，支付网关按约定重发。</li>
+   <li>重发到达 —— <strong>被 Redis 挡住了</strong>，我们回 200 说"处理过了"。</li>
+   <li>网关停止重发。这笔支付永远不会被处理。用户付了钱，订单三十分钟后被超时任务取消，库存释放。</li>
+  </ol>
+  <p>整个过程<strong>没有任何一处报错</strong>——第 4 步在日志里是一条正常的"duplicate"。等到用户来投诉时，你会发现自己的系统认为这个事件已经成功处理过了。</p>
+ </div>
+
+ <p>根因只有一句：<strong>Redis 的那次写入不在数据库事务里，所以它不会跟着回滚。</strong>而 <code>insert … on conflict do nothing</code> 在同一个事务里，事务回滚时幂等记录一起消失，重发就能正常进来——<em>这不是 PostgreSQL 更快或更好，是它和业务写入在同一个原子单元里。</em></p>
+
+ <div class="tw">
+ <table>
+  <thead><tr><th></th><th>Redis SETNX</th><th>PG 唯一索引（本项目）</th></tr></thead>
+  <tbody>
+   <tr><td>和业务写入原子</td><td><strong>否</strong>——回滚后记录仍在，导致永久丢单</td><td>是</td></tr>
+   <tr><td>丢数据的后果</td><td>图 1 的三个窗口 → 重复处理一次</td><td>不会丢（WAL）</td></tr>
+   <tr><td>过期之后的重发</td><td>TTL 一过就被当成新事件；而有些网关会在几天后重发</td><td>按保留期决定，可以设成远大于网关的重试窗口</td></tr>
+   <tr><td>能不能事后追查</td><td>只有一个键，原始 payload 没留</td><td>整条 payload 都在表里，可完整重放</td></tr>
+   <tr><td>成本</td><td>一次 Redis 往返</td><td>一次索引插入，本来就在事务里，几乎免费</td></tr>
+  </tbody>
+ </table>
+ </div>
+
+ <div class="note deep">
+  <span class="tag">深入 · 如果就是想要 Redis 那一层速度</span>
+  <p>有一个正确的用法：<strong>让 Redis 只做前置过滤，不做判定。</strong></p>
+  <p>业务事务提交<em>之后</em>，往 Redis 写一个 <code>evt:7f3</code>；下次同一个 event_id 到达时先查 Redis，命中就直接回 200，省掉一次数据库往返。未命中则照常走数据库唯一索引。</p>
+  <p>这样一来：Redis 丢数据 → 多几次数据库插入尝试，被唯一索引正确挡住；事务回滚 → Redis 里根本没写过那个键，重发能正常进来。<strong>两个方向的失败都只影响性能，不影响正确性。</strong></p>
+  <p>这正是第 06 部分"Redis 当闸门"的同一个模式，也是第 07 部分那句话的又一次应用：<em>Redis 减少工作量，数据库保证结论。</em>值得注意的是，写入必须在事务<strong>提交之后</strong>——写在事务里就又回到了开头那个 bug。</p>
+ </div>
+
+ <div class="note trap">
+  <span class="tag">陷阱 · <code>webhook_events</code> 表会长得很快</span>
+  <p>每一条回调一行，还带着完整 payload。三个必须提前定的东西：<strong>唯一索引建在 <code>(provider, event_id)</code> 上</strong>（不是单列——不同网关的 id 可能撞）；<strong>payload 用 <code>jsonb</code> 但别建 GIN 索引</strong>（除非真要按内容查，那个索引会比表还大）；<strong>按月分区 + 保留期</strong>，理由和第 10 部分 Q2 一样。</p>
+  <p>还有一个小细节：用 <code>identity</code> 主键时，<code>on conflict do nothing</code> 冲突失败也会消耗一个序列值，所以 id 会跳号。<strong>这是正常的</strong>，不要写任何依赖"id 连续"的逻辑。</p>
+ </div>
+
  <div class="ask">
   <h4>动手与思考 · 第 09 部分</h4>
   <p class="hint">先自己想，再展开思路。</p>
@@ -2676,6 +2882,111 @@ webhookRoutes.post("/payment", async (c) =&gt; {
  </div>
 
  <p>三条都没命中之前，Outbox 是更好的选择——<strong>它少一个需要运维的组件、少一个故障域，而且所有状态都在你能用 SQL 查询的地方</strong>。真要换的时候，Outbox 也不会白写：它本来就是往 MQ 投递的标准前置模式（先落 outbox，再由 relay 发到 MQ）。</p>
+
+ <h3>参考取舍：把 PostgreSQL 当队列，边界在哪</h3>
+ <p class="lead">上面这套 Outbox 完全跑在 PostgreSQL 上。它能撑到哪，取决于两件事：<strong><code>SKIP LOCKED</code> 的吞吐</strong>，以及<strong>高频更新的表会不会膨胀</strong>。第二件比第一件更容易出事，而且更难发现。</p>
+
+ <div class="tw">
+ <table>
+  <thead><tr><th>量级</th><th>PostgreSQL Outbox 的表现</th></tr></thead>
+  <tbody>
+   <tr><td>每秒几十条</td><td>毫无压力。轮询查询走部分索引，几乎不花钱</td></tr>
+   <tr><td>每秒几百条</td><td>正常工作区间。需要开始注意批次大小和事务时长</td></tr>
+   <tr><td>每秒几千条</td><td>能跑，但要认真调：分区、fillfactor、独立的 autovacuum 参数、投递并发</td></tr>
+   <tr><td>每秒上万条</td><td>该换真 MQ 了。此时 outbox 的写入量会成为主库 WAL 的显著份额，而这个库还要服务在线请求</td></tr>
+  </tbody>
+ </table>
+ </div>
+
+ <h4>三个 PostgreSQL 特有的坑</h4>
+
+ <div class="note trap">
+  <span class="tag">陷阱 ① · 表膨胀</span>
+  <p>Outbox 是一张<strong>高频 UPDATE 的表</strong>（<code>sent_at</code>、<code>attempts</code>）。PostgreSQL 的 UPDATE 是"写新版本 + 标记旧版本死亡"，所以每条消息至少产生一个死元组。autovacuum 跟不上时，表和索引都会膨胀——<em>查询变慢，而行数根本没涨</em>。</p>
+  <p>三个针对性的设置：</p>
+  <ul>
+   <li><code>alter table outbox set (fillfactor = 70)</code>——留出页内空间，让更新走 HOT 路径，不必更新索引。</li>
+   <li>给这张表单独调 autovacuum：<code>autovacuum_vacuum_scale_factor = 0.02</code>（默认 0.2 对高频表太懒）。</li>
+   <li>把 <code>attempts</code> 这类频繁变化的列<strong>不要建索引</strong>——索引列被更新会让 HOT 优化失效。</li>
+  </ul>
+ </div>
+
+ <div class="note trap">
+  <span class="tag">陷阱 ② · 长事务会冻住整个库的回收</span>
+  <p>这是把 <code>deliver()</code> 放在事务里的<strong>第二个代价，比锁更隐蔽</strong>：一个跑了 10 秒的事务，会让这 10 秒内整个数据库产生的死元组都无法被回收——不只是 outbox 表，而是所有表。几个这样的 relay 循环叠在一起，你会看到一个奇怪的现象：<em>某张完全无关的热点表开始膨胀。</em></p>
+  <p><code>select * from pg_stat_activity where state = 'idle in transaction'</code> 是排查这类问题的第一条命令。而更根本的解法是下面那个两阶段写法。</p>
+ </div>
+
+ <div class="note trap">
+  <span class="tag">陷阱 ③ · NOTIFY 的三条限制</span>
+  <p>用 <code>LISTEN/NOTIFY</code> 降低延迟时要知道：payload 上限约 8 KB（所以只发 id，不发内容）；<strong>NOTIFY 在事务提交时才真正发出</strong>（这其实是好事——不会通知一个还没提交的行）；以及通知队列本身有容量上限，塞满时 <code>NOTIFY</code> 会直接报错，把你的业务事务一起搞挂。</p>
+  <p>所以那行 <code>notify</code> 应该是<strong>可失败而不影响主流程</strong>的——它只是加速器，慢路径的轮询才是保证。</p>
+ </div>
+
+ <h4>两阶段认领：同时解决长事务和膨胀</h4>
+
+<figure class="code">
+<figcaption><span class="path">src/outbox/relay.ts —— 生产版本</span><span class="lang">typescript</span></figcaption>
+<pre><code class="language-typescript">const STALE_MS = 60_000;   // 认领超过一分钟还没结果，视为持有者已死
+
+export async function relayOnce(batch = 20) {
+  // 阶段一：短事务，只认领，不投递
+  const claimed = await db.transaction(async (tx) =&gt; {
+    const rows = await tx.select().from(outbox)
+      .where(and(
+        isNull(outbox.sentAt),
+        lt(outbox.attempts, 10),
+        or(isNull(outbox.claimedAt),
+           lt(outbox.claimedAt, new Date(Date.now() - STALE_MS))),
+      ))
+      .orderBy(outbox.id).limit(batch)
+      .for("update", { skipLocked: true });
+    if (rows.length === 0) return [];
+
+    await tx.update(outbox)
+      .set({ claimedAt: new Date(), claimedBy: INSTANCE_ID })
+      .where(inArray(outbox.id, rows.map((r) =&gt; r.id)));
+    return rows;
+  });                                   // ← 事务在这里就结束了，几毫秒
+
+  // 阶段二：事务外并发投递。慢也不占连接、不持锁、不挡 vacuum
+  const results = await Promise.allSettled(claimed.map((r) =&gt; deliver(r)));
+
+  // 阶段三：又一个短事务，只写结果
+  await db.transaction(async (tx) =&gt; {
+    for (const [i, res] of results.entries()) {
+      const row = claimed[i]!;
+      if (res.status === "fulfilled") {
+        await tx.update(outbox).set({ sentAt: new Date() }).where(eq(outbox.id, row.id));
+      } else {
+        await tx.update(outbox)
+          .set({ attempts: row.attempts + 1, lastError: String(res.reason).slice(0, 500) })
+          .where(eq(outbox.id, row.id));
+      }
+    }
+  });
+  return claimed.length;
+}</code></pre>
+</figure>
+
+ <p>代价说清楚：<strong>如果实例在阶段二崩溃，那一批会在 <code>STALE_MS</code> 之后被别人重新认领并重投一次。</strong>这不是缺陷——图 11 底部那句话本来就成立：Outbox 提供的是至少一次投递，消费方必须幂等。两阶段只是把"重复投递的窗口"从"崩溃即重复"变成了"崩溃后一分钟内重复"，代价换来的是事务从 10 秒缩到 5 毫秒。</p>
+
+ <div class="note deep">
+  <span class="tag">深入 · PostgreSQL 队列 vs Redis Streams vs 真 MQ</span>
+  <div class="tw"><table>
+   <thead><tr><th></th><th>PG Outbox</th><th>Redis Streams</th><th>Kafka / RabbitMQ</th></tr></thead>
+   <tbody>
+    <tr><td>和业务写入原子</td><td><strong>是</strong>——这是它唯一不可替代的性质</td><td>否（双写问题原样存在）</td><td>否（所以前面仍要一个 Outbox）</td></tr>
+    <tr><td>持久性</td><td>WAL，不丢</td><td>图 1 的三个窗口</td><td>可配置的多副本，很强</td></tr>
+    <tr><td>吞吐</td><td>每秒几千条</td><td>每秒几万条</td><td>每秒几十万条</td></tr>
+    <tr><td>多消费组</td><td>要自己实现进度表</td><td>原生支持</td><td>原生支持</td></tr>
+    <tr><td>排查手段</td><td><strong>SQL</strong>——积压多少、卡在哪条、报什么错，一句 select</td><td>专用命令</td><td>专用工具链</td></tr>
+    <tr><td>要运维的组件</td><td>0（复用现有数据库）</td><td>1</td><td>1，而且通常是最重的那个</td></tr>
+   </tbody>
+  </table></div>
+  <p>注意第一行：<strong>即使你上了 Kafka，Outbox 也不会消失</strong>——因为"改数据库"和"发消息"之间的原子性问题，MQ 本身解决不了。真正的演进不是"用 MQ 替换 Outbox"，而是"把 relay 的投递目标从邮件服务改成 MQ"，Outbox 那张表和这段代码原样保留。</p>
+  <p>这也解释了为什么这一季从 Outbox 开始教而不是从 MQ 开始：<strong>它是地基，不是过渡方案。</strong></p>
+ </div>
 
  <div class="ask">
   <h4>动手与思考 · 第 10 部分</h4>
@@ -3338,7 +3649,7 @@ async function loadWithLimit&lt;T&gt;(load: () =&gt; Promise&lt;T&gt;, degraded:
     <p><strong>引入 Redis 带来的：</strong>丢失窗口的判断（01）、会话搬家的代价（02）、缓存三种失效形态（04）、分布式锁的不可靠（07）、降级矩阵（13）。这些是<em>为了性能而付出的复杂度</em>。</p>
     <p>如果重新开始，我会这样排：</p>
     <ol class="steps">
-     <li><strong>先做第 05、06、09、10。</strong>它们不需要 Redis，只需要 PostgreSQL。做完之后你已经有一个正确的电商系统了——慢，但正确。</li>
+     <li><strong>先做第 05、06、09、10。</strong>它们不需要 Redis，只需要 PostgreSQL。做完之后你已经有一个正确的电商系统了——慢，但正确。这四部分各自都有一节<em>参考取舍</em>，写清楚了纯 PostgreSQL 的做法、它的吞吐上限，以及撞到上限时的下一步是什么。</li>
      <li><strong>然后做第 03 和第 12。</strong>索引和可观测性。这时你会拿到真实数据：到底哪里慢、慢多少。</li>
      <li><strong>最后才引入 Redis</strong>，而且只在第 2 步的数据指出确实需要的地方引入。很可能你只需要它的一两个用途，而不是六个。</li>
     </ol>
